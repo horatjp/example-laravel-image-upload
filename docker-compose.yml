@@ -1,0 +1,41 @@
+services:
+    app:
+        build:
+            context: ./docker/php
+        volumes:
+            - .:/var/www
+        working_dir: /var/www
+        user: 1000:1000
+    web:
+        build:
+            context: ./docker/nginx
+        ports:
+            - 80:80
+            - 443:443
+        volumes:
+            - ./docker/nginx/config:/etc/nginx/conf.d
+            - ./:/var/www
+        networks:
+            default:
+                aliases:
+                    - minio.${DOMAIN-laravel.test}
+    minio:
+        image: minio/minio
+        environment:
+            MINIO_ROOT_USER: ${MINIO_USERNAME-minio}
+            MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD-minio_password}
+        command: server /data --address :9001 --console-address :8900
+        volumes:
+            - minio:/data
+        ports:
+            - 9001:9001
+            - 8900:8900
+    minio-create-buckets:
+        image: minio/mc
+        depends_on:
+            - minio
+        entrypoint: >
+            /bin/sh -c " /usr/bin/mc config host add local http://minio:9001 ${MINIO_USERNAME-minio} ${MINIO_PASSWORD-minio_password}; /usr/bin/mc mb -p local/${MINIO_BUCKET-default}; /usr/bin/mc anonymous set download local/${MINIO_BUCKET-default}; exit 0;"
+
+volumes:
+    minio:
